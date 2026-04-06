@@ -117,7 +117,7 @@
   <nav id="mobile-nav">
     <div class="nav-btn" onclick="changeChapter(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
     <div class="nav-btn" onclick="toggleModal('book-modal')"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div>
-    <div class="nav-btn" onclick="toggleModal('settings-modal')"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+    <div class="nav-btn" onclick="toggleModal('settings-modal')">⚙️</div>
     <div class="nav-btn" onclick="changeChapter(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
   </nav>
 
@@ -179,9 +179,13 @@
   <main id="reader-container"><div id="bible-output"></div></main>
 
   <script>
-    let currentBook = "JHN"; let currentChap = 1; let selectedVersesNums = []; let allBooks = [];
+    // --- APP STATE ---
+    let currentBook = localStorage.getItem('lastBook') || "JHN"; 
+    let currentChap = parseInt(localStorage.getItem('lastChapter')) || 1;
+    let selectedVersesNums = []; 
+    let allBooks = [];
     
-    // IndexedDB Initialization
+    // --- DATABASE LOGIC (INDEXEDDB) ---
     const DB_NAME = "BibleOfflineDB";
     const DB_VERSION = 1;
     let db;
@@ -191,41 +195,54 @@
       db = e.target.result;
       db.createObjectStore("chapters", { keyPath: "id" });
     };
-    request.onsuccess = (e) => { db = e.target.result; };
-
-    window.onload = () => {
-      google.script.run.withSuccessHandler(s => {
-        currentBook = s.LastBook; currentChap = parseInt(s.LastChapter);
-        loadScripture(currentBook, currentChap);
-      }).getUserSettings();
-      google.script.run.withSuccessHandler(data => { allBooks = data.books; renderBookGrid(); }).getBooksList();
+    request.onsuccess = (e) => { 
+      db = e.target.result;
+      // Start the app only after DB is ready
+      initializeApp();
     };
+
+    function initializeApp() {
+      // 1. Load the last read chapter
+      loadScripture(currentBook, currentChap);
+      
+      // 2. Get the book list from the Bible API
+      fetch('https://bible.helloao.org/api/BSB/books.json')
+        .then(res => res.json())
+        .then(data => {
+          allBooks = data.books;
+          renderBookGrid();
+        });
+    }
 
     function loadScripture(book, chap) {
       const id = `${book}_${chap}`;
       document.getElementById('reader-container').style.opacity = "0";
 
-      // 1. Try local DB first (Offline)
-      if (db) {
-        const transaction = db.transaction(["chapters"], "readonly");
-        const store = transaction.objectStore("chapters");
-        const getReq = store.get(id);
+      // Save progress to phone memory
+      localStorage.setItem('lastBook', book);
+      localStorage.setItem('lastChapter', chap);
+      currentBook = book;
+      currentChap = chap;
 
-        getReq.onsuccess = () => {
-          if (getReq.result) {
-            console.log("Offline Load Successful");
-            render(getReq.result.data);
-          } else {
-            // 2. Fallback to API if not offline
-            google.script.run.withSuccessHandler(data => {
+      // Check Offline DB first
+      const transaction = db.transaction(["chapters"], "readonly");
+      const store = transaction.objectStore("chapters");
+      const getReq = store.get(id);
+
+      getReq.onsuccess = () => {
+        if (getReq.result) {
+          console.log("Loaded from Offline Cache");
+          render(getReq.result.data);
+        } else {
+          // Fallback to Live API
+          fetch(`https://bible.helloao.org/api/BSB/${book}/${chap}.json`)
+            .then(res => res.json())
+            .then(data => {
               saveToOffline(id, data);
               render(data);
-            }).getBibleData(book, chap);
-          }
-        };
-      } else {
-        google.script.run.withSuccessHandler(render).getBibleData(book, chap);
-      }
+            });
+        }
+      };
     }
 
     function saveToOffline(id, data) {
@@ -245,15 +262,14 @@
 
       for(let i=0; i < allBooks.length; i++) {
         const book = allBooks[i];
-        status.innerText = `Caching ${book.name}...`;
+        status.innerText = `Downloading ${book.name}...`;
         bar.style.width = `${(i / allBooks.length) * 100}%`;
         
-        await new Promise(resolve => {
-          google.script.run.withSuccessHandler(data => {
-             saveToOffline(`${book.id}_1`, data); // Caching first chapter of each for speed
-             resolve();
-          }).getBibleData(book.id, 1);
-        });
+        try {
+          const res = await fetch(`https://bible.helloao.org/api/BSB/${book.id}/1.json`);
+          const data = await res.json();
+          saveToOffline(`${book.id}_1`, data);
+        } catch (e) { console.error("Download failed for " + book.name); }
       }
       status.innerText = "Library Ready for Offline Use!";
     }
@@ -266,8 +282,9 @@
       
       let html = `<h1>${data.book.name} ${data.chapter.number}</h1>`;
       data.chapter.content.forEach(item => {
-        if (item.type === 'heading') html += `<div class="heading">${flatten(item.content)}</div>`;
-        else if (item.type === 'verse') {
+        if (item.type === 'heading') {
+          html += `<div class="heading">${flatten(item.content)}</div>`;
+        } else if (item.type === 'verse') {
           const savedKey = `highlight_${currentBook}_${currentChap}_${item.number}`;
           const savedColor = localStorage.getItem(savedKey) || 'transparent';
           html += `<span class="verse" data-id="${item.number}" style="background-color:${savedColor}" onclick="toggleVerseSelection(this)"><span class="verse-num">${item.number}</span>${flatten(item.content)} </span>`;
@@ -289,8 +306,11 @@
     function toggleVerseSelection(el) {
       el.classList.toggle('selected');
       const vNum = el.getAttribute('data-id');
-      if (selectedVersesNums.includes(vNum)) selectedVersesNums = selectedVersesNums.filter(v => v !== vNum);
-      else selectedVersesNums.push(vNum);
+      if (selectedVersesNums.includes(vNum)) {
+        selectedVersesNums = selectedVersesNums.filter(v => v !== vNum);
+      } else {
+        selectedVersesNums.push(vNum);
+      }
       document.getElementById('action-bar').classList.toggle('active', selectedVersesNums.length > 0);
     }
 
@@ -314,7 +334,7 @@
     function copySelection() {
       let text = "";
       document.querySelectorAll('.verse.selected').forEach(el => text += el.innerText + " ");
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(text).then(() => alert("Copied!"));
       clearUISelection();
     }
 
@@ -327,7 +347,7 @@
         const div = document.createElement('div');
         div.className = "book-item";
         div.innerText = book.name;
-        div.onclick = () => { currentBook = book.id; currentChap = 1; loadScripture(book.id, 1); toggleModal('book-modal'); };
+        div.onclick = () => { loadScripture(book.id, 1); toggleModal('book-modal'); };
         list.appendChild(div);
       });
     }
@@ -335,15 +355,18 @@
     function filterBooks() { renderBookGrid(document.getElementById('search-bar').value); }
 
     function changeChapter(dir) {
-      currentChap = parseInt(currentChap) + dir;
-      if (currentChap < 1) currentChap = 1;
-      loadScripture(currentBook, currentChap);
+      let newChap = currentChap + dir;
+      if (newChap < 1) newChap = 1;
+      loadScripture(currentBook, newChap);
     }
 
     function setTheme(t) {
       const root = document.documentElement;
-      if(t === 'Dark') { root.style.setProperty('--bg', '#121212'); root.style.setProperty('--text', '#d1d1d1'); }
-      else { root.style.setProperty('--bg', '#fdfaf6'); root.style.setProperty('--text', '#2c241e'); }
+      if(t === 'Dark') {
+        root.style.setProperty('--bg', '#121212'); root.style.setProperty('--text', '#d1d1d1');
+      } else {
+        root.style.setProperty('--bg', '#fdfaf6'); root.style.setProperty('--text', '#2c241e');
+      }
       toggleModal('settings-modal');
     }
 
