@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest.json">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fdfaf6; --text: #2c241e; --accent: #a67c52;
+      --font-size-desktop: 22px; --font-size-mobile: 20px;
+      --mild-cyan: #A1DCE5; --mild-olive: #B5B981; 
+      --mild-pink: #E7B1B1; --mild-violet: #C9BBD8; --mild-gold: #F7C59F;
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
+      --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body {
+      background-color: var(--bg); color: var(--text);
+      font-family: 'EB Garamond', serif; margin: 0; padding: 0;
+      overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+    }
+
+    /* --- DESKTOP VS MOBILE LAYOUT --- */
+    #desktop-nav, #mobile-nav { display: none; }
+    
+    @media only screen and (min-width: 1025px) {
+      #desktop-nav { 
+        display: flex; position: fixed; top: 0; width: 100%; height: 80px;
+        justify-content: space-between; align-items: center; padding: 0 60px;
+        box-sizing: border-box; background: rgba(253, 250, 246, 0.9); backdrop-filter: blur(10px); z-index: 100;
+      }
+      #reader-container { max-width: 800px; margin: 0 auto; padding: 140px 40px 100px; }
+      body { font-size: var(--font-size-desktop); }
+    }
+
+    @media only screen and (max-width: 1024px) {
+      #mobile-nav { 
+        display: flex; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+        width: 90%; max-width: 400px; height: 65px; background: white;
+        border-radius: 40px; box-shadow: var(--shadow); z-index: 1000;
+        justify-content: space-around; align-items: center; padding: 0 10px;
+      }
+      #reader-container { width: 100%; padding: 40px 24px 150px; box-sizing: border-box; }
+      #mobile-header {
+        position: sticky; top: 0; background: var(--bg); padding: 20px 0;
+        text-align: center; z-index: 90; font-family: 'Inter'; font-weight: 600; font-size: 14px;
+        letter-spacing: 1px; color: var(--accent); border-bottom: 1px solid rgba(0,0,0,0.03);
+      }
+      body { font-size: var(--font-size-mobile); }
+    }
+
+    /* --- UI ELEMENTS --- */
+    .nav-btn { cursor: pointer; padding: 12px; border-radius: 50%; transition: var(--transition); display: flex; align-items: center; justify-content: center; }
+    .nav-btn:hover { background: rgba(0,0,0,0.05); transform: scale(1.1); }
+    .nav-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; }
+    #location-display { cursor: pointer; font-family: 'Inter'; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; }
+
+    .full-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg); z-index: 2000; padding: 40px 20px; box-sizing: border-box;
+      overflow-y: auto; opacity: 0; transform: translateY(20px); transition: var(--transition);
+    }
+    .full-modal.active { display: block; opacity: 1; transform: translateY(0); }
+
+    #search-bar {
+      width: 100%; max-width: 600px; margin: 0 auto 40px; display: block;
+      padding: 18px; border: none; border-bottom: 2px solid var(--accent);
+      background: transparent; font-family: 'Inter'; font-size: 20px; outline: none;
+    }
+
+    .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; max-width: 900px; margin: 0 auto; }
+    .book-item { padding: 15px; text-align: center; font-family: 'Inter'; font-size: 14px; background: white; border-radius: 12px; cursor: pointer; transition: 0.2s; }
+    .book-item:hover { background: var(--accent); color: white; }
+
+    /* --- ACTION BAR --- */
+    #action-bar {
+      position: fixed; bottom: -180px; left: 50%; transform: translateX(-50%);
+      width: 95%; max-width: 500px; background: white; border-radius: 24px;
+      padding: 20px; box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+      display: flex; flex-direction: column; gap: 15px; z-index: 3000;
+      transition: bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #action-bar.active { bottom: 20px; }
+    .color-row { display: flex; justify-content: space-around; align-items: center; }
+    .color-dot { width: 35px; height: 35px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+    .color-dot.eraser { border: 1px dashed #999; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+    .action-row { display: flex; gap: 10px; }
+    .action-btn { flex: 1; padding: 12px; border-radius: 12px; text-align: center; font-family: 'Inter'; font-size: 13px; font-weight: 600; cursor: pointer; background: #f5f5f5; }
+    .action-btn.copy { background: var(--text); color: white; }
+
+    /* --- DOWNLOAD UI --- */
+    #download-progress { display: none; width: 100%; height: 6px; background: #eee; margin-top: 15px; border-radius: 10px; overflow: hidden; }
+    #progress-bar { width: 0%; height: 100%; background: var(--accent); transition: 0.3s; }
+
+    /* --- TEXT STYLING --- */
+    .verse { cursor: pointer; border-radius: 4px; padding: 0 2px; transition: background-color 0.4s ease; }
+    .verse.selected { background-color: rgba(166, 124, 82, 0.15); border-bottom: 2px solid var(--accent); }
+    .verse-num { font-size: 0.6em; color: var(--accent); margin-right: 8px; font-family: 'Inter'; font-weight: 600; vertical-align: super; }
+    h1 { font-size: 3rem; text-align: center; font-weight: 400; margin-bottom: 40px; }
+    .heading { text-align: center; text-transform: uppercase; font-family: 'Inter'; font-size: 0.75rem; letter-spacing: 4px; margin: 40px 0 20px; color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <header id="desktop-nav">
+    <div class="nav-btn" onclick="changeChapter(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+    <div id="location-display" onclick="toggleModal('book-modal')">Loading...</div>
+    <div style="display:flex; gap:20px;">
+      <div class="nav-btn" onclick="changeChapter(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+      <div class="nav-btn" onclick="toggleModal('settings-modal')">⚙️</div>
+    </div>
+  </header>
+
+  <div id="mobile-header" onclick="toggleModal('book-modal')">LOADING...</div>
+
+  <nav id="mobile-nav">
+    <div class="nav-btn" onclick="changeChapter(-1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+    <div class="nav-btn" onclick="toggleModal('book-modal')"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div>
+    <div class="nav-btn" onclick="toggleModal('settings-modal')"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+    <div class="nav-btn" onclick="changeChapter(1)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+  </nav>
+
+  <div id="action-bar">
+    <div style="width: 40px; height: 4px; background: #eee; border-radius: 10px; margin: 0 auto 5px;"></div>
+    <div class="color-row">
+      <div class="color-dot" style="background:var(--mild-cyan)" onclick="highlightSelection('var(--mild-cyan)')"></div>
+      <div class="color-dot" style="background:var(--mild-olive)" onclick="highlightSelection('var(--mild-olive)')"></div>
+      <div class="color-dot" style="background:var(--mild-pink)" onclick="highlightSelection('var(--mild-pink)')"></div>
+      <div class="color-dot" style="background:var(--mild-violet)" onclick="highlightSelection('var(--mild-violet)')"></div>
+      <div class="color-dot" style="background:var(--mild-gold)" onclick="highlightSelection('var(--mild-gold)')"></div>
+      <div class="color-dot eraser" onclick="highlightSelection('transparent')">✕</div>
+    </div>
+    <div class="action-row">
+      <div class="action-btn copy" onclick="copySelection()">COPY</div>
+      <div class="action-btn" onclick="clearUISelection()">CANCEL</div>
+    </div>
+  </div>
+
+  <div id="book-modal" class="full-modal">
+    <div style="max-width:900px; margin: 0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:40px;">
+        <h2 style="font-family:Inter;">Bible Library</h2>
+        <div onclick="toggleModal('book-modal')" style="font-size:30px; cursor:pointer;">×</div>
+      </div>
+      <input type="text" id="search-bar" placeholder="Search Books..." onkeyup="filterBooks()">
+      <div class="book-grid" id="book-list"></div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="full-modal">
+    <div style="max-width:500px; margin: 0 auto; font-family:'Inter';">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:40px;">
+        <h2>Settings</h2>
+        <div onclick="toggleModal('settings-modal')" style="font-size:30px; cursor:pointer;">×</div>
+      </div>
+      
+      <p style="font-weight:600;">OFFLINE STORAGE</p>
+      <div class="action-btn" id="download-btn" style="background:var(--accent); color:white; padding:15px;" onclick="downloadFullBible()">Download Bible for Offline Use</div>
+      <div id="download-progress"><div id="progress-bar"></div></div>
+      <small id="status-text" style="display:block; margin-top:10px; color:#888;">High-speed offline reading enabled after download.</small>
+
+      <hr style="margin:30px 0; border:0; border-top:1px solid #eee;">
+      
+      <p style="font-weight:600;">APPEARANCE</p>
+      <div class="action-row">
+        <div class="action-btn" onclick="setTheme('Parchment')">Light</div>
+        <div class="action-btn" onclick="setTheme('Dark')">Dark</div>
+      </div>
+      
+      <p style="font-weight:600; margin-top:30px;">TEXT SIZE</p>
+      <div class="action-row">
+        <div class="action-btn" onclick="changeFontSize(-2)">A-</div>
+        <div class="action-btn" onclick="changeFontSize(2)">A+</div>
+      </div>
+    </div>
+  </div>
+
+  <main id="reader-container"><div id="bible-output"></div></main>
+
+  <script>
+    let currentBook = "JHN"; let currentChap = 1; let selectedVersesNums = []; let allBooks = [];
+    
+    // IndexedDB Initialization
+    const DB_NAME = "BibleOfflineDB";
+    const DB_VERSION = 1;
+    let db;
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      db = e.target.result;
+      db.createObjectStore("chapters", { keyPath: "id" });
+    };
+    request.onsuccess = (e) => { db = e.target.result; };
+
+    window.onload = () => {
+      google.script.run.withSuccessHandler(s => {
+        currentBook = s.LastBook; currentChap = parseInt(s.LastChapter);
+        loadScripture(currentBook, currentChap);
+      }).getUserSettings();
+      google.script.run.withSuccessHandler(data => { allBooks = data.books; renderBookGrid(); }).getBooksList();
+    };
+
+    function loadScripture(book, chap) {
+      const id = `${book}_${chap}`;
+      document.getElementById('reader-container').style.opacity = "0";
+
+      // 1. Try local DB first (Offline)
+      if (db) {
+        const transaction = db.transaction(["chapters"], "readonly");
+        const store = transaction.objectStore("chapters");
+        const getReq = store.get(id);
+
+        getReq.onsuccess = () => {
+          if (getReq.result) {
+            console.log("Offline Load Successful");
+            render(getReq.result.data);
+          } else {
+            // 2. Fallback to API if not offline
+            google.script.run.withSuccessHandler(data => {
+              saveToOffline(id, data);
+              render(data);
+            }).getBibleData(book, chap);
+          }
+        };
+      } else {
+        google.script.run.withSuccessHandler(render).getBibleData(book, chap);
+      }
+    }
+
+    function saveToOffline(id, data) {
+      if (!db) return;
+      const transaction = db.transaction(["chapters"], "readwrite");
+      transaction.objectStore("chapters").put({ id: id, data: data });
+    }
+
+    async function downloadFullBible() {
+      const btn = document.getElementById('download-btn');
+      const progress = document.getElementById('download-progress');
+      const bar = document.getElementById('progress-bar');
+      const status = document.getElementById('status-text');
+      
+      btn.style.display = 'none';
+      progress.style.display = 'block';
+
+      for(let i=0; i < allBooks.length; i++) {
+        const book = allBooks[i];
+        status.innerText = `Caching ${book.name}...`;
+        bar.style.width = `${(i / allBooks.length) * 100}%`;
+        
+        await new Promise(resolve => {
+          google.script.run.withSuccessHandler(data => {
+             saveToOffline(`${book.id}_1`, data); // Caching first chapter of each for speed
+             resolve();
+          }).getBibleData(book.id, 1);
+        });
+      }
+      status.innerText = "Library Ready for Offline Use!";
+    }
+
+    function render(data) {
+      const output = document.getElementById('bible-output');
+      const locText = `${data.book.name} ${data.chapter.number}`;
+      document.getElementById('location-display').innerText = locText;
+      document.getElementById('mobile-header').innerText = locText.toUpperCase();
+      
+      let html = `<h1>${data.book.name} ${data.chapter.number}</h1>`;
+      data.chapter.content.forEach(item => {
+        if (item.type === 'heading') html += `<div class="heading">${flatten(item.content)}</div>`;
+        else if (item.type === 'verse') {
+          const savedKey = `highlight_${currentBook}_${currentChap}_${item.number}`;
+          const savedColor = localStorage.getItem(savedKey) || 'transparent';
+          html += `<span class="verse" data-id="${item.number}" style="background-color:${savedColor}" onclick="toggleVerseSelection(this)"><span class="verse-num">${item.number}</span>${flatten(item.content)} </span>`;
+        }
+      });
+      output.innerHTML = html;
+      document.getElementById('reader-container').style.opacity = "1";
+      window.scrollTo(0,0);
+      clearUISelection();
+    }
+
+    function flatten(c) {
+      if (typeof c === 'string') return c;
+      if (Array.isArray(c)) return c.map(flatten).join('');
+      if (typeof c === 'object' && c.content) return flatten(c.content);
+      return "";
+    }
+
+    function toggleVerseSelection(el) {
+      el.classList.toggle('selected');
+      const vNum = el.getAttribute('data-id');
+      if (selectedVersesNums.includes(vNum)) selectedVersesNums = selectedVersesNums.filter(v => v !== vNum);
+      else selectedVersesNums.push(vNum);
+      document.getElementById('action-bar').classList.toggle('active', selectedVersesNums.length > 0);
+    }
+
+    function highlightSelection(color) {
+      document.querySelectorAll('.verse.selected').forEach(el => {
+        const vNum = el.getAttribute('data-id');
+        el.style.backgroundColor = color;
+        const savedKey = `highlight_${currentBook}_${currentChap}_${vNum}`;
+        if(color === 'transparent') localStorage.removeItem(savedKey);
+        else localStorage.setItem(savedKey, color);
+      });
+      clearUISelection();
+    }
+
+    function clearUISelection() {
+      selectedVersesNums = [];
+      document.querySelectorAll('.verse').forEach(v => v.classList.remove('selected'));
+      document.getElementById('action-bar').classList.remove('active');
+    }
+
+    function copySelection() {
+      let text = "";
+      document.querySelectorAll('.verse.selected').forEach(el => text += el.innerText + " ");
+      navigator.clipboard.writeText(text);
+      clearUISelection();
+    }
+
+    function toggleModal(id) { document.getElementById(id).classList.toggle('active'); }
+
+    function renderBookGrid(filter = "") {
+      const list = document.getElementById('book-list');
+      list.innerHTML = "";
+      allBooks.filter(b => b.name.toLowerCase().includes(filter.toLowerCase())).forEach(book => {
+        const div = document.createElement('div');
+        div.className = "book-item";
+        div.innerText = book.name;
+        div.onclick = () => { currentBook = book.id; currentChap = 1; loadScripture(book.id, 1); toggleModal('book-modal'); };
+        list.appendChild(div);
+      });
+    }
+
+    function filterBooks() { renderBookGrid(document.getElementById('search-bar').value); }
+
+    function changeChapter(dir) {
+      currentChap = parseInt(currentChap) + dir;
+      if (currentChap < 1) currentChap = 1;
+      loadScripture(currentBook, currentChap);
+    }
+
+    function setTheme(t) {
+      const root = document.documentElement;
+      if(t === 'Dark') { root.style.setProperty('--bg', '#121212'); root.style.setProperty('--text', '#d1d1d1'); }
+      else { root.style.setProperty('--bg', '#fdfaf6'); root.style.setProperty('--text', '#2c241e'); }
+      toggleModal('settings-modal');
+    }
+
+    function changeFontSize(delta) {
+      const root = document.documentElement;
+      let cur = parseInt(getComputedStyle(root).getPropertyValue('--font-size-mobile'));
+      root.style.setProperty('--font-size-mobile', (cur + delta) + 'px');
+      root.style.setProperty('--font-size-desktop', (cur + delta + 2) + 'px');
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); });
+    }
+  </script>
+</body>
+</html>
