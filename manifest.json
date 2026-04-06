@@ -1,7 +1,7 @@
 {
   "name": "The Immersive Word",
   "short_name": "Bible",
-  "start_url": "index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#fdfaf6",
   "theme_color": "#a67c52",
