@@ -1,0 +1,15 @@
+{
+  "name": "The Immersive Word",
+  "short_name": "Bible",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#fdfaf6",
+  "theme_color": "#a67c52",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2903/2903531.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
