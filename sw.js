@@ -1,17 +1,20 @@
 const CACHE_NAME = 'bible-app-v1';
+// Note the dots before the filenames—this helps GitHub find them!
 const ASSETS = [
-  'index.html',
-  'manifest.json'
+  './',
+  './index.html',
+  './manifest.json',
+  './sw.js'
 ];
 
-// Install the Service Worker and cache the basic files
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS);
+    })
   );
 });
 
-// Intercept network requests to serve files from cache if offline
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
